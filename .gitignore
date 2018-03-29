@@ -3,7 +3,9 @@
 .Rapp.history
 
 # Data files
+/*.RData
 .RData
+/*.csv
 .csv
 
 # Example code in package build process

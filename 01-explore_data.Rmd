@@ -3,13 +3,37 @@ title: "R Notebook"
 output: html_notebook
 ---
 
+## ML with HAR data
+
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+add description...
 
+## Load and check data
 ```{r}
-plot(cars)
+library(caret)
+testing  <- read.csv("data/pml-testing.csv")
+training <- read.csv("data/pml-training.csv")
+head(training)
+dim(training)
 ```
+
+## Feature selection
+
+There are many dimensions so dimensionality reduction may be a strategy to apply. First let's see about near-zero covariates.
+```{r}
+nsv <- nearZeroVar(training, saveMetrics = TRUE)
+nsv[nsv$nzv == TRUE, ]
+```
+We can exclude these covariates from the our data
+```{r}
+excludelist <- rownames(nsv[nsv$nzv == TRUE, ])
+```
+
+
+
+## Section
+
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
 

@@ -1,0 +1,96 @@
+---
+title: "Practical ML Course Project"
+author: "C. Muhs"
+date: '2018-04-01'
+output:
+  html_document: default
+  html_notebook: default
+---
+
+## ML with HAR data
+
+This project predicts the manner in which participants performed weight lifting exercises. This outcome varibale is the `classe` variable in the training set.
+
+## Load and check data
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(caret)
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores()) 
+registerDoParallel(cluster)
+testing  <- read.csv("data/pml-testing.csv")
+training <- read.csv("data/pml-training.csv")
+# head(training)
+dim(training)
+set.seed(1001) # for reproducing results
+```
+
+## Feature selection
+
+First remove the variables that are timestamps, user names, and similar information.
+
+```{r}
+training <- training[, 7:160]
+```
+
+From the codebook of the [original study](https://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har), we know that many variables in the data are summary statistics. These variables are `NA` or missing values in most of the rows of data. These summary variabls start with `kurtosis_`, `skewness_`, `max_`, `min_`, `amplitude_`, `var_`, `avg_`, and `stddev_`. We will remove these covariates when estimating our model.
+
+```{r}
+# Make list of summary statistics variables
+sumvars <- grepl("^kurtosis_|^skewness_|^max_|^min_|^amplitude_|^var_|^avg_|^stddev_",
+                 names(training))
+sum(sumvars)
+```
+100 of the columns are summary variables. That leaves us with 60 other covariates.
+Check for near-zero covariates.
+```{r}
+nsv <- nearZeroVar(training[, !sumvars], saveMetrics = TRUE)
+nrow(nsv[nsv$nzv == TRUE, ])
+```
+There aren't any NSV so this doesn't help us.
+
+## Modeling
+
+We will use random forests to predict `classe` and limit the training data to the covariates that are not summary statistics. We'll use k-folds cross validation (5 folds) to do this.
+
+My machine is crashing with the entire training data set so I'll reduce it further.
+
+```{r, echo=TRUE}
+# Make a smaller training set
+intrain_small <- createDataPartition(y = training$classe, p = 0.1, list = FALSE)
+training_small <- training[intrain_small, ]
+
+# Cross validation
+control <- trainControl(method = "repeatedcv", number = 5,
+                        allowParallel = TRUE)
+# Random forest
+covnames <- names(training_small[, !sumvars])
+covnames <- covnames[-54] # drop classe from covariate list
+form <- as.formula(paste("classe~", paste(covnames, collapse="+"), sep=""))
+model <- train(form,
+               data = training_small, 
+               method = "rf",
+               trControl = control)
+# Return to single thread processing
+stopCluster(cluster)
+registerDoSEQ()
+
+# Print model
+print(model$finalModel)
+```
+
+## Results
+
+Check model accuracy.
+
+```{r, echo=TRUE}
+confusionMatrix.train(model)
+model$resample
+```
+The model performs at about 96.4% accuracy. This is using just 10% of the training data. The accuracy should be higher if I re-estimate the model with the full sample.
+
+## Apply to testing set
+```{r, echo=TRUE}
+pred <- predict(model, testing)
+pred
+```
